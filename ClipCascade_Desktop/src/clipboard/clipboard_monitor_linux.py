@@ -6,10 +6,18 @@ import threading
 import time
 
 from core.constants import *
-from pywayland.protocol.ext_data_control_v1.ext_data_control_manager_v1 import (
-    ExtDataControlManagerV1,
-)
-from pywayland.protocol.wayland.wl_seat import WlSeat
+
+try:
+    from pywayland.protocol.ext_data_control_v1.ext_data_control_manager_v1 import (
+        ExtDataControlManagerV1,
+    )
+    from pywayland.protocol.wayland.wl_seat import WlSeat
+except (ImportError, ModuleNotFoundError) as e:
+    logging.warning(
+        f"pywayland protocol bindings not available: {e}. Falling back to polling mode."
+    )
+    ExtDataControlManagerV1 = None
+    WlSeat = None
 
 _callback_update = None
 _clipboard_thread = None
