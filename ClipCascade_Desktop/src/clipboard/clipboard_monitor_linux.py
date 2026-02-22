@@ -6,6 +6,10 @@ import threading
 import time
 
 from core.constants import *
+from pywayland.protocol.ext_data_control_v1.ext_data_control_manager_v1 import (
+    ExtDataControlManagerV1,
+)
+from pywayland.protocol.wayland.wl_seat import WlSeat
 
 _callback_update = None
 _clipboard_thread = None
@@ -127,9 +131,11 @@ class _WaylandClipboardMonitor:
 
             def on_global(reg, name, interface, version):
                 if interface == "ext_data_control_manager_v1":
-                    self.data_control_manager = reg.bind(name, interface, version)
+                    self.data_control_manager = reg.bind(
+                        name, ExtDataControlManagerV1, version
+                    )
                 elif interface == "wl_seat":
-                    self.seat = reg.bind(name, interface, version)
+                    self.seat = reg.bind(name, WlSeat, version)
 
             registry.dispatcher["global"] = on_global
 
@@ -513,14 +519,12 @@ def wayland_set_clipboard(data: bytes, mime_type: str = "text/plain") -> bool:
         data_control_manager = None
         seat = None
 
-        def registry_handler(reg, event):
+        def registry_handler(reg, name, interface, version):
             nonlocal data_control_manager, seat
-            if event.name == "ext_data_control_manager_v1":
-                data_control_manager = reg.bind(
-                    event.name, event.interface, event.version
-                )
-            elif event.interface == "wl_seat":
-                seat = reg.bind(event.name, event.interface, event.version)
+            if interface == "ext_data_control_manager_v1":
+                data_control_manager = reg.bind(name, interface, version)
+            elif interface == "wl_seat":
+                seat = reg.bind(name, interface, version)
 
         registry.dispatcher["global"] = registry_handler
         display.roundtrip()
