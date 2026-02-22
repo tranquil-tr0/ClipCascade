@@ -218,6 +218,11 @@ class ClipboardManager:
                 if PLATFORM == WINDOWS or PLATFORM == MACOS:
                     pyperclip.copy(payload)
                 elif PLATFORM.startswith(LINUX):
+                    if EXT_DATA_CONTROL_SUPPORT:
+                        if clipboard_monitor.wayland_set_clipboard(
+                            payload.encode("utf-8"), "text/plain"
+                        ):
+                            return
                     if XMODE and self.is_x_clipboard_owner:
                         ClipboardManager.execute_command(
                             "xclip",
@@ -253,12 +258,16 @@ class ClipboardManager:
                     pb_image = pasteboard.Pasteboard()
                     pb_image.set_contents(tiff_data, pasteboard.TIFF)
                 elif PLATFORM.startswith(LINUX):
-                    # Save the image to a binary buffer in PNG format
                     with io.BytesIO() as output:
                         payload.convert("RGB").save(output, format="PNG")
                         png_data = output.getvalue()
 
-                    clipboard_monitor.enable_block_image_once()  # Block image copy to prevent deadlock
+                    clipboard_monitor.enable_block_image_once()
+                    if EXT_DATA_CONTROL_SUPPORT:
+                        if clipboard_monitor.wayland_set_clipboard(
+                            png_data, "image/png"
+                        ):
+                            return
                     if XMODE and self.is_x_clipboard_owner:
                         ClipboardManager.execute_command(
                             "xclip",
