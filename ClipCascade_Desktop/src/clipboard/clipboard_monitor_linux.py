@@ -40,9 +40,10 @@ class _WaylandClipboardMonitor:
     def _handle_data_offer(self, offer):
         self.current_offer_mime_types = []
 
-        @offer.event("offer")
         def on_offer(offer_obj, mime_type):
             self.current_offer_mime_types.append(mime_type)
+
+        offer.dispatcher["offer"] = on_offer
 
     def _handle_selection(self, offer):
         global _block_image_once
@@ -500,79 +501,6 @@ def _start(enable_image_monitoring=False, enable_file_monitoring=False):
             daemon=True,
         )
         _clipboard_thread.start()
-
-
-def wayland_set_clipboard(data: bytes, mime_type: str = "text/plain") -> bool:
-    global _wayland_monitor
-
-    if not EXT_DATA_CONTROL_SUPPORT:
-        return False
-
-    try:
-        from pywayland.client import Display
-
-        display = Display()
-        display.connect()
-
-        registry = display.get_registry()
-
-        data_control_manager = None
-        seat = None
-
-        def registry_handler(reg, name, interface, version):
-            nonlocal data_control_manager, seat
-            if interface == "ext_data_control_manager_v1":
-                data_control_manager = reg.bind(name, interface, version)
-            elif interface == "wl_seat":
-                seat = reg.bind(name, interface, version)
-
-        registry.dispatcher["global"] = registry_handler
-        display.roundtrip()
-
-        if data_control_manager is None or seat is None:
-            display.disconnect()
-            return False
-
-        data_device = data_control_manager.get_data_device(seat)
-        data_source = data_control_manager.create_data_source()
-
-        source_data = data
-        source_mime = mime_type
-
-        @data_source.event("send")
-        def on_send(source, mime, fd):
-            try:
-                os.write(fd, source_data)
-            finally:
-                os.close(fd)
-
-        @data_source.event("cancelled")
-        def on_cancelled(source):
-            try:
-                source.destroy()
-            except Exception:
-                pass
-
-        data_source.offer(mime_type)
-        if mime_type == "text/plain":
-            data_source.offer("text/plain;charset=utf-8")
-            data_source.offer("UTF8_STRING")
-
-        data_device.set_selection(data_source)
-        display.roundtrip()
-
-        time.sleep(0.05)
-        display.disconnect()
-
-        if _wayland_monitor is not None:
-            _wayland_monitor.previous_clipboard = (
-                data.decode("utf-8") if mime_type.startswith("text") else data
-            )
-
-        return True
-    except Exception as e:
-        logging.error(f"Failed to set clipboard via ext_data_control_v1: {e}")
-        return False
 
 
 def stop():
